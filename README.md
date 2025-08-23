@@ -1,4 +1,6 @@
-# WiFi Network Analyzer
+# HeatMapHero
+
+![WiFi Network Analyzer](Assets/Gemini_Generated_Image_strvptstrvptstrv.png)
 
 A cross-platform Python script for comprehensive WiFi network analysis and monitoring.
 
