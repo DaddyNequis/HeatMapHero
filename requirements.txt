@@ -1,0 +1,17 @@
+# No additional Python packages required - uses only standard library
+# However, system dependencies are needed:
+#
+# Windows:
+# - netsh (built-in)
+# - ping (built-in)
+# - iperf3 (download from https://iperf.fr/iperf-download.php)
+#
+# macOS:
+# - airport command (built-in)
+# - ping (built-in)
+# - iperf3 (install via: brew install iperf3)
+#
+# Linux:
+# - iw package (install via: apt install iw / yum install iw)
+# - ping (usually built-in)
+# - iperf3 (install via: apt install iperf3 / yum install iperf3)
