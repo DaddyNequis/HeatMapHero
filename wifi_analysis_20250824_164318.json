@@ -1,0 +1,36 @@
+[
+  {
+    "timestamp": "2025-08-24T16:42:48.728309",
+    "coordinates": {
+      "x": 1.0,
+      "y": 1.0
+    },
+    "os": "linux",
+    "interface": "wlp0s20f3",
+    "wifi_info": {
+      "ssid": "ArigatoGozaimasu",
+      "bssid": "wlp0s20f3)",
+      "rssi": -46,
+      "frequency": "5745.0",
+      "tx_rate": "234.0 MBit/s VHT-MCS 3 80MHz VHT-NSS 2"
+    },
+    "gateway_ip": "192.168.3.1",
+    "latency": {
+      "target": "192.168.3.1",
+      "packets_sent": 10,
+      "packets_received": 10,
+      "packet_loss_percent": 0.0,
+      "avg_latency_ms": 5.2909999999999995,
+      "min_latency_ms": 2.66,
+      "max_latency_ms": 16.0,
+      "jitter_ms": 4.4838932735836705
+    },
+    "throughput": {
+      "tcp_throughput_mbps": 373.3288876367109,
+      "tcp_retransmits": 2,
+      "udp_throughput_mbps": 99.9985941668724,
+      "udp_jitter_ms": 0.13213643156109767,
+      "udp_lost_percent": 0
+    }
+  }
+]

@@ -16,10 +16,12 @@ import os
 import sys
 
 class WiFiAnalyzer:
-    def __init__(self, interface: str = None, iperf_server: str = None):
+    def __init__(self, interface: str = None, iperf_server: str = None, x: float = None, y: float = None):
         self.os_type = platform.system().lower()
         self.interface = interface or self._get_default_interface()
         self.iperf_server = iperf_server
+        self.x = x
+        self.y = y
         self.results = []
         
     def _get_default_interface(self) -> str:
@@ -290,6 +292,8 @@ class WiFiAnalyzer:
         timestamp = datetime.now().isoformat()
         
         print(f"[{timestamp}] Starting WiFi analysis...")
+        if self.x is not None and self.y is not None:
+            print(f"Location: x={self.x}, y={self.y}")
         
         # Get WiFi information
         wifi_info = self.get_wifi_info()
@@ -312,6 +316,10 @@ class WiFiAnalyzer:
         # Combine all results
         analysis_result = {
             'timestamp': timestamp,
+            'coordinates': {
+                'x': self.x,
+                'y': self.y
+            },
             'os': self.os_type,
             'interface': self.interface,
             'wifi_info': wifi_info,
@@ -368,6 +376,8 @@ def main():
     parser = argparse.ArgumentParser(description="Cross-platform WiFi Network Analyzer")
     parser.add_argument('--interface', '-i', help='WiFi interface name')
     parser.add_argument('--iperf-server', '-s', help='iperf3 server IP for throughput testing')
+    parser.add_argument('--x', type=float, help='X coordinate for location tracking')
+    parser.add_argument('--y', type=float, help='Y coordinate for location tracking')
     parser.add_argument('--interval', '-t', type=int, default=30, 
                        help='Monitoring interval in seconds (default: 30)')
     parser.add_argument('--duration', '-d', type=int, 
@@ -379,7 +389,7 @@ def main():
     args = parser.parse_args()
     
     # Create analyzer instance
-    analyzer = WiFiAnalyzer(interface=args.interface, iperf_server=args.iperf_server)
+    analyzer = WiFiAnalyzer(interface=args.interface, iperf_server=args.iperf_server, x=args.x, y=args.y)
     
     print("WiFi Network Analyzer")
     print("===================")
@@ -387,6 +397,8 @@ def main():
     print(f"Interface: {analyzer.interface}")
     if args.iperf_server:
         print(f"iperf3 server: {args.iperf_server}")
+    if args.x is not None and args.y is not None:
+        print(f"Coordinates: x={args.x}, y={args.y}")
     print()
     
     if args.once:

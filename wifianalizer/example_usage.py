@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Example usage patterns for WiFi Analyzer
+
+lets add a parameter called x and y and it should be coordinates and it should print the coordinates in the result json file
 """
 
 from wifi_analyzer import WiFiAnalyzer
