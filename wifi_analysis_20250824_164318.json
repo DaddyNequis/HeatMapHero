@@ -2,8 +2,8 @@
   {
     "timestamp": "2025-08-24T16:42:48.728309",
     "coordinates": {
-      "x": 1.0,
-      "y": 1.0
+      "x": 80.0,
+      "y": 20.0
     },
     "os": "linux",
     "interface": "wlp0s20f3",

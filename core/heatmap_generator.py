@@ -14,14 +14,26 @@ class HeatMapGenerator:
     
     def __init__(self, theme_manager=None):
         self.theme_manager = theme_manager
+        self.current_colorbar = None
     
     def generate_heatmap(self, ax, x_coords: np.ndarray, y_coords: np.ndarray, 
                         values: np.ndarray, label: str, colormap: str, 
                         background_image: Optional[Image.Image] = None) -> None:
         """Generate and display heat map on the given axes"""
         
-        # Clear previous plot and set theme
+        # Clear previous plot and colorbar
         ax.clear()
+        if self.current_colorbar:
+            try:
+                if hasattr(self.current_colorbar, 'remove'):
+                    self.current_colorbar.remove()
+                elif hasattr(self.current_colorbar, 'ax') and self.current_colorbar.ax:
+                    self.current_colorbar.ax.remove()
+            except (AttributeError, ValueError):
+                pass  # Ignore errors if colorbar is already removed or invalid
+            finally:
+                self.current_colorbar = None
+            
         if self.theme_manager:
             self.theme_manager.configure_plot_theme(ax.figure, ax)
         
@@ -55,13 +67,17 @@ class HeatMapGenerator:
                            alpha=0.5, cmap=colormap, aspect='auto', origin='lower')
         
         # Add colorbar
-        cbar = plt.colorbar(heatmap, ax=ax)
-        cbar.set_label(label, rotation=270, labelpad=20)
-        
-        if self.theme_manager:
-            cbar.set_label(label, rotation=270, labelpad=20, 
-                          color=self.theme_manager.colors['dark_fg'])
-            cbar.ax.tick_params(colors=self.theme_manager.colors['dark_fg'])
+        # try:
+        #     self.current_colorbar = plt.colorbar(heatmap, ax=ax)
+        #     self.current_colorbar.set_label(label, rotation=270, labelpad=20)
+            
+        #     if self.theme_manager:
+        #         self.current_colorbar.set_label(label, rotation=270, labelpad=20, 
+        #                       color=self.theme_manager.colors['dark_fg'])
+        #         self.current_colorbar.ax.tick_params(colors=self.theme_manager.colors['dark_fg'])
+        # except Exception as e:
+        #     print(f"Warning: Could not create colorbar: {e}")
+        #     self.current_colorbar = None
         
         # Plot data points
         edge_color = 'white' if self.theme_manager else 'black'
@@ -74,13 +90,61 @@ class HeatMapGenerator:
         
         # Set labels and title
         title_color = self.theme_manager.colors['dark_fg'] if self.theme_manager else 'black'
-        ax.set_xlabel('X Coordinate', color=title_color)
-        ax.set_ylabel('Y Coordinate', color=title_color)
         ax.set_title(f'{label.split(" (")[0]} Heat Map ({len(values)} points)', color=title_color)
         
-        # Add grid
-        grid_color = 'white' if self.theme_manager else 'gray'
-        ax.grid(True, alpha=0.3, color=grid_color)
+        # Hide x and y axis
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+    
+    def generate_empty_heatmap(self, ax, heatmap_type: str, 
+                              background_image: Optional[Image.Image] = None) -> None:
+        """Generate an empty heatmap with just background and axis setup"""
+        
+        # Clear previous plot and colorbar
+        ax.clear()
+        if self.current_colorbar:
+            try:
+                if hasattr(self.current_colorbar, 'remove'):
+                    self.current_colorbar.remove()
+                elif hasattr(self.current_colorbar, 'ax') and self.current_colorbar.ax:
+                    self.current_colorbar.ax.remove()
+            except (AttributeError, ValueError):
+                pass
+            finally:
+                self.current_colorbar = None
+                
+        if self.theme_manager:
+            self.theme_manager.configure_plot_theme(ax.figure, ax)
+        
+        # Always use full axis range
+        x_min, x_max = 0, 200
+        y_min, y_max = 0, 100
+        
+        # Display background image if available
+        if background_image:
+            img_array = np.array(background_image)
+            ax.imshow(img_array, extent=[x_min, x_max, y_min, y_max], 
+                     alpha=0.8, aspect='auto')
+        
+        # Set bounds to full axis range
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+        
+        # Set title
+        title_color = self.theme_manager.colors['dark_fg'] if self.theme_manager else 'black'
+        ax.set_title(f'{heatmap_type} Heat Map (No Data)', color=title_color)
+        
+        # Hide x and y axis
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
     
     def _remove_duplicates(self, x_coords: np.ndarray, y_coords: np.ndarray, 
                           values: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -103,18 +167,10 @@ class HeatMapGenerator:
         return np.array(filtered_x), np.array(filtered_y), np.array(filtered_values)
     
     def _calculate_bounds(self, x_coords: np.ndarray, y_coords: np.ndarray) -> Tuple[float, float, float, float]:
-        """Calculate bounds with padding"""
-        x_min, x_max = x_coords.min(), x_coords.max()
-        y_min, y_max = y_coords.min(), y_coords.max()
-        
-        # Add padding
-        x_range = max(x_max - x_min, 1)  # Minimum range of 1
-        y_range = max(y_max - y_min, 1)
-        
-        x_min -= x_range * Config.INTERPOLATION_PADDING
-        x_max += x_range * Config.INTERPOLATION_PADDING
-        y_min -= y_range * Config.INTERPOLATION_PADDING
-        y_max += y_range * Config.INTERPOLATION_PADDING
+        """Calculate bounds with padding, enforcing maximum axis limits"""
+        # Always use full axis range regardless of data point locations
+        x_min, x_max = 0, 200
+        y_min, y_max = 0, 100
         
         return x_min, x_max, y_min, y_max
     
@@ -185,9 +241,9 @@ class HeatMapGenerator:
     def _plot_single_point(self, ax, x: float, y: float, value: float, 
                           label: str, colormap: str, background_image: Optional[Image.Image]) -> None:
         """Handle plotting when only one data point is available"""
-        # Create bounds around the single point
-        x_min, x_max = x - 5, x + 5
-        y_min, y_max = y - 5, y + 5
+        # Always use full axis range
+        x_min, x_max = 0, 200
+        y_min, y_max = 0, 100
         
         # Display background image if available
         if background_image:
@@ -212,14 +268,17 @@ class HeatMapGenerator:
                    textcoords='offset points', fontsize=12, fontweight='bold',
                    **style)
         
-        # Set bounds and labels
+        # Set bounds to full axis range
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
         
         title_color = self.theme_manager.colors['dark_fg'] if self.theme_manager else 'black'
-        ax.set_xlabel('X Coordinate', color=title_color)
-        ax.set_ylabel('Y Coordinate', color=title_color)
         ax.set_title(f'{label} - Single Data Point', color=title_color)
         
-        grid_color = 'white' if self.theme_manager else 'gray'
-        ax.grid(True, alpha=0.3, color=grid_color)
+        # Hide x and y axis
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)

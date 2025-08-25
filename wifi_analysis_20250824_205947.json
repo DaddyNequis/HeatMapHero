@@ -1,0 +1,24 @@
+[
+  {
+    "timestamp": "2025-08-24T20:59:37.581753",
+    "coordinates": {
+      "x": 84.7,
+      "y": 94.5
+    },
+    "os": "windows",
+    "interface": "Wi-Fi",
+    "wifi_info": {},
+    "gateway_ip": "192.168.3.1",
+    "latency": {
+      "target": "192.168.3.1",
+      "packets_sent": 10,
+      "packets_received": 10,
+      "packet_loss_percent": 0.0,
+      "avg_latency_ms": 3.5,
+      "min_latency_ms": 1.0,
+      "max_latency_ms": 6.0,
+      "jitter_ms": 1.2692955176439846
+    },
+    "throughput": {}
+  }
+]

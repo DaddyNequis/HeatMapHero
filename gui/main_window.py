@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 import sys
+import subprocess
+import threading
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -35,9 +37,14 @@ class HeatMapHero:
         # Data storage
         self.background_image = None
         self.background_path = None
+        self.click_enabled = False
+        self.analysis_running = False
         
         # Create UI
         self.create_widgets()
+        
+        # Connect click event to canvas
+        self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
         
     def create_widgets(self):
         """Create the main UI components"""
@@ -68,12 +75,9 @@ class HeatMapHero:
         style.configure("Custom.TLabelframe", background="#2b2b2b")           # Frame bg
         style.configure("Custom.TLabelframe.Label", background="#2b2b2b")     # Title bg
 
-
         control_frame = ttk.LabelFrame(parent, text="Controls", padding="10", style="Custom.TLabelframe")
         control_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
         
-
-
         # Background image controls
         ttk.Label(control_frame, text="Background Image:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.bg_path_var = tk.StringVar(value="No image selected")
@@ -102,6 +106,19 @@ class HeatMapHero:
         ttk.Button(control_frame, text="Generate Heat Map", command=self.generate_heatmap, 
                   style="Accent.TButton").grid(row=3, column=0, columnspan=3, pady=(20, 0))
         
+        # Click analysis controls
+        click_frame = ttk.Frame(control_frame)
+        click_frame.grid(row=4, column=0, columnspan=3, pady=(10, 0), sticky=(tk.W, tk.E))
+        
+        self.click_enabled_var = tk.BooleanVar(value=False)
+        click_checkbox = ttk.Checkbutton(click_frame, text="Enable Click Analysis", 
+                                        variable=self.click_enabled_var,
+                                        command=self.toggle_click_analysis)
+        click_checkbox.grid(row=0, column=0, sticky=tk.W)
+        
+        ttk.Label(click_frame, text="(Click on heatmap to run WiFi analysis at that location)", 
+                 foreground=self.theme_manager.colors['gray_fg']).grid(row=1, column=0, sticky=tk.W, pady=(2, 0))
+        
         # Status bar
         self._create_status_bar(control_frame)
     
@@ -109,7 +126,7 @@ class HeatMapHero:
         """Create the status bar"""
         self.status_var = tk.StringVar(value="Ready")
         status_frame = ttk.Frame(parent)
-        status_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        status_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         ttk.Label(status_frame, text="Status:").pack(side=tk.LEFT)
         ttk.Label(status_frame, textvariable=self.status_var, 
                  foreground=self.theme_manager.colors['status_fg']).pack(side=tk.LEFT, padx=(5, 0))
@@ -201,15 +218,20 @@ class HeatMapHero:
     
     def generate_heatmap(self):
         """Generate and display the heat map"""
-        if not self.data_processor.has_data():
-            messagebox.showwarning("Warning", "No WiFi data available. Please select a folder with JSON files.")
-            return
-        
         selected_type = self.heatmap_type_var.get()
         self.status_var.set(f"Generating {selected_type} heat map...")
         self.root.update()
         
         try:
+            if not self.data_processor.has_data():
+                # Generate empty heatmap with just background and axis bounds
+                self.heatmap_generator.generate_empty_heatmap(
+                    self.ax, selected_type, self.background_image
+                )
+                self.canvas.draw()
+                self.status_var.set(f"Empty {selected_type} heat map generated (no data points)")
+                return
+            
             # Get coordinates and values
             x_coords, y_coords, values = self.data_processor.get_coordinates_and_values(selected_type)
             _, label, colormap = self.data_processor.get_heatmap_data(selected_type)
@@ -218,7 +240,12 @@ class HeatMapHero:
             if "throughput" in Config.HEATMAP_TYPES[selected_type].lower():
                 valid_indices = values > 0
                 if not any(valid_indices):
-                    messagebox.showwarning("Warning", f"No {selected_type} data available in the selected files.")
+                    # Generate empty heatmap for this specific metric
+                    self.heatmap_generator.generate_empty_heatmap(
+                        self.ax, selected_type, self.background_image
+                    )
+                    self.canvas.draw()
+                    self.status_var.set(f"Empty {selected_type} heat map - no {selected_type} data available")
                     return
                 x_coords = x_coords[valid_indices]
                 y_coords = y_coords[valid_indices]
@@ -235,5 +262,109 @@ class HeatMapHero:
             self.status_var.set(f"{selected_type} heat map generated with {len(values)} data points")
             
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate heat map: {str(e)}")
             self.status_var.set("Error generating heat map")
+            print(f"Error generating heat map: {e}")
+    
+    def toggle_click_analysis(self):
+        """Toggle click analysis mode"""
+        self.click_enabled = self.click_enabled_var.get()
+        if self.click_enabled:
+            self.status_var.set("Click analysis enabled - Click on heatmap to analyze")
+            # Change cursor to crosshair when over the plot
+            self.canvas.get_tk_widget().configure(cursor="crosshair")
+        else:
+            self.status_var.set("Click analysis disabled")
+            self.canvas.get_tk_widget().configure(cursor="")
+    
+    def on_canvas_click(self, event):
+        """Handle click events on the canvas"""
+        if not self.click_enabled or self.analysis_running or not event.inaxes:
+            return
+        
+        # Get click coordinates in data space
+        x_click = event.xdata
+        y_click = event.ydata
+        
+        if x_click is None or y_click is None:
+            return
+        
+        # Round coordinates to 1 decimal place
+        x_click = round(x_click, 1)
+        y_click = round(y_click, 1)
+        
+        self.status_var.set(f"Running WiFi analysis at coordinates ({x_click}, {y_click})...")
+        self.root.update()
+        
+        # Run WiFi analyzer in background thread
+        thread = threading.Thread(target=self.run_wifi_analysis, args=(x_click, y_click))
+        thread.daemon = True
+        thread.start()
+    
+    def run_wifi_analysis(self, x: float, y: float):
+        """Run WiFi analysis at the specified coordinates"""
+        self.analysis_running = True
+        
+        try:
+            # Get the path to the WiFi analyzer script
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            analyzer_script = os.path.join(script_dir, "wifianalizer", "wifi_analyzer.py")
+            
+            if not os.path.exists(analyzer_script):
+                self.root.after(0, lambda: self.status_var.set("Error: WiFi analyzer script not found"))
+                return
+            
+            # Prepare command
+            cmd = [
+                sys.executable,  # Use current Python interpreter
+                analyzer_script,
+                "--once",  # Run analysis once
+                "--x", str(x),
+                "--y", str(y)
+            ]
+            
+            # Add output file in the JSON folder if one is selected
+            if self.data_processor.json_folder:
+                timestamp = self.get_timestamp()
+                output_file = os.path.join(self.data_processor.json_folder, f"analysis_{timestamp}_{x}_{y}.json")
+                cmd.extend(["--output", output_file])
+            
+            # Run the analyzer
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                # Analysis successful
+                self.root.after(0, lambda: self.status_var.set(f"Analysis completed at ({x}, {y})"))
+                
+                # If we have a JSON folder, reload the data
+                if self.data_processor.json_folder:
+                    self.root.after(100, self.reload_data)
+            else:
+                error_msg = result.stderr or "Unknown error"
+                self.root.after(0, lambda: self.status_var.set(f"Analysis failed: {error_msg[:50]}..."))
+                print(f"WiFi analysis error: {error_msg}")
+        
+        except subprocess.TimeoutExpired:
+            self.root.after(0, lambda: self.status_var.set("Analysis timed out"))
+        except Exception as e:
+            self.root.after(0, lambda: self.status_var.set(f"Error running analysis: {str(e)[:30]}..."))
+            print(f"Error running WiFi analysis: {e}")
+        
+        finally:
+            self.analysis_running = False
+    
+    def get_timestamp(self):
+        """Get current timestamp for filename"""
+        from datetime import datetime
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    def reload_data(self):
+        """Reload data from the JSON folder"""
+        if self.data_processor.json_folder:
+            self.data_processor.load_json_data(self.data_processor.json_folder)
+            self.update_data_summary()
+            
+            # Regenerate current heatmap if we have data
+            if self.data_processor.has_data():
+                selected_type = self.heatmap_type_var.get()
+                self.status_var.set(f"Data reloaded - Regenerating {selected_type} heatmap...")
+                self.root.after(100, self.generate_heatmap)

@@ -37,3 +37,7 @@ class Config:
     MAX_POINTS_FOR_LABELS = 10
     SCATTER_POINT_SIZE = 100
     SINGLE_POINT_SIZE = 200
+    
+    # Click analysis settings
+    CLICK_ANALYSIS_TIMEOUT = 60  # seconds
+    AUTO_RELOAD_DELAY = 100  # milliseconds
