@@ -48,11 +48,11 @@ class HeatMapGenerator:
         if background_image:
             img_array = np.array(background_image)
             ax.imshow(img_array, extent=[x_min, x_max, y_min, y_max], 
-                     alpha=0.3, aspect='auto')
+                     alpha=1, aspect='auto')
         
         # Create heat map
         heatmap = ax.imshow(grid_values.T, extent=[x_min, x_max, y_min, y_max],
-                           alpha=0.7, cmap=colormap, aspect='auto', origin='lower')
+                           alpha=0.5, cmap=colormap, aspect='auto', origin='lower')
         
         # Add colorbar
         cbar = plt.colorbar(heatmap, ax=ax)
