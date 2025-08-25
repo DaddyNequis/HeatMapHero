@@ -1,0 +1,17 @@
+# Core GUI and image processing
+Pillow>=9.0.0
+
+# Scientific computing and visualization
+numpy>=1.21.0
+matplotlib>=3.5.0
+scipy>=1.8.0
+
+# Note: tkinter is included with Python by default
+# Built-in modules don't need to be installed: json, os, sys, platform, glob, subprocess, threading, time, datetime, argparse
+
+# Optional: For better performance with large datasets
+# pandas>=1.4.0  # Uncomment if you want to add pandas support later
+
+# Development and testing (optional)
+# pytest>=7.0.0
+# pytest-cov>=3.0.0
