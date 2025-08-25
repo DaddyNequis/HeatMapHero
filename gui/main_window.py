@@ -8,6 +8,7 @@ import os
 import sys
 import subprocess
 import threading
+import platform
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -45,6 +46,9 @@ class HeatMapHero:
         
         # Connect click event to canvas
         self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
+        
+        # Get available WiFi adapters
+        self.get_wifi_adapters()
         
     def create_widgets(self):
         """Create the main UI components"""
@@ -116,8 +120,48 @@ class HeatMapHero:
                                         command=self.toggle_click_analysis)
         click_checkbox.grid(row=0, column=0, sticky=tk.W)
         
+        # Add WiFi adapter dropdown
+        ttk.Label(click_frame, text="WiFi Adapter:").grid(row=0, column=1, sticky=tk.W, padx=(20, 5))
+        self.adapter_var = tk.StringVar()
+        self.adapter_combo = ttk.Combobox(click_frame, textvariable=self.adapter_var, 
+                                        width=15, state="readonly")
+        self.adapter_combo.grid(row=0, column=2, sticky=tk.W)
+        ttk.Button(click_frame, text="Refresh", command=self.get_wifi_adapters,
+                  width=8).grid(row=0, column=3, padx=(5, 0))
+        
+        # Add iperf3 controls
+        iperf_frame = ttk.Frame(click_frame)
+        iperf_frame.grid(row=1, column=0, columnspan=4, pady=(5, 0), sticky=tk.W)
+        
+        self.iperf_enabled_var = tk.BooleanVar(value=False)
+        iperf_checkbox = ttk.Checkbutton(iperf_frame, text="Include iperf3 Testing", 
+                                         variable=self.iperf_enabled_var,
+                                         command=self.toggle_iperf_options)
+        iperf_checkbox.grid(row=0, column=0, sticky=tk.W)
+        
+        # iperf server input
+        ttk.Label(iperf_frame, text="Server:").grid(row=0, column=1, sticky=tk.W, padx=(20, 5))
+        self.iperf_server_var = tk.StringVar()
+        self.iperf_server_entry = ttk.Entry(iperf_frame, textvariable=self.iperf_server_var, width=15)
+        self.iperf_server_entry.grid(row=0, column=2, sticky=tk.W)
+        self.iperf_server_entry.config(state=tk.DISABLED)
+        
+        # Interval input
+        ttk.Label(iperf_frame, text="Interval:").grid(row=0, column=3, sticky=tk.W, padx=(10, 5))
+        self.iperf_interval_var = tk.StringVar(value="15")
+        self.iperf_interval_entry = ttk.Entry(iperf_frame, textvariable=self.iperf_interval_var, width=5)
+        self.iperf_interval_entry.grid(row=0, column=4, sticky=tk.W)
+        self.iperf_interval_entry.config(state=tk.DISABLED)
+        
+        # Duration input
+        ttk.Label(iperf_frame, text="Duration:").grid(row=0, column=5, sticky=tk.W, padx=(10, 5))
+        self.iperf_duration_var = tk.StringVar(value="3600")
+        self.iperf_duration_entry = ttk.Entry(iperf_frame, textvariable=self.iperf_duration_var, width=6)
+        self.iperf_duration_entry.grid(row=0, column=6, sticky=tk.W)
+        self.iperf_duration_entry.config(state=tk.DISABLED)
+        
         ttk.Label(click_frame, text="(Click on heatmap to run WiFi analysis at that location)", 
-                 foreground=self.theme_manager.colors['gray_fg']).grid(row=1, column=0, sticky=tk.W, pady=(2, 0))
+                 foreground=self.theme_manager.colors['gray_fg']).grid(row=2, column=0, columnspan=4, sticky=tk.W, pady=(2, 0))
         
         # Status bar
         self._create_status_bar(control_frame)
@@ -300,6 +344,13 @@ class HeatMapHero:
         thread.daemon = True
         thread.start()
     
+    def toggle_iperf_options(self):
+        """Toggle iperf3 options based on checkbox state"""
+        state = tk.NORMAL if self.iperf_enabled_var.get() else tk.DISABLED
+        self.iperf_server_entry.config(state=state)
+        self.iperf_interval_entry.config(state=state)
+        self.iperf_duration_entry.config(state=state)
+    
     def run_wifi_analysis(self, x: float, y: float):
         """Run WiFi analysis at the specified coordinates"""
         self.analysis_running = True
@@ -313,6 +364,9 @@ class HeatMapHero:
                 self.root.after(0, lambda: self.status_var.set("Error: WiFi analyzer script not found"))
                 return
             
+            # Get selected WiFi adapter
+            adapter = self.adapter_var.get()
+            
             # Prepare command
             cmd = [
                 sys.executable,  # Use current Python interpreter
@@ -321,6 +375,29 @@ class HeatMapHero:
                 "--x", str(x),
                 "--y", str(y)
             ]
+            
+            # Add interface parameter if an adapter is selected
+            if adapter:
+                cmd.extend(["--interface", adapter])
+            
+            # Add iperf parameters if enabled
+            if self.iperf_enabled_var.get():
+                iperf_server = self.iperf_server_var.get().strip()
+                if iperf_server:
+                    cmd.extend(["--iperf-server", iperf_server])
+                    
+                    # Add interval and duration if they're valid numbers
+                    try:
+                        interval = int(self.iperf_interval_var.get())
+                        cmd.extend(["--interval", str(interval)])
+                    except ValueError:
+                        pass
+                        
+                    try:
+                        duration = int(self.iperf_duration_var.get())
+                        cmd.extend(["--duration", str(duration)])
+                    except ValueError:
+                        pass
             
             # Add output file in the JSON folder if one is selected
             if self.data_processor.json_folder:
@@ -333,7 +410,10 @@ class HeatMapHero:
             
             if result.returncode == 0:
                 # Analysis successful
-                self.root.after(0, lambda: self.status_var.set(f"Analysis completed at ({x}, {y})"))
+                analysis_desc = f"Analysis completed at ({x}, {y}) using {adapter}"
+                if self.iperf_enabled_var.get() and self.iperf_server_var.get().strip():
+                    analysis_desc += f" with iperf testing"
+                self.root.after(0, lambda: self.status_var.set(analysis_desc))
                 
                 # If we have a JSON folder, reload the data
                 if self.data_processor.json_folder:
@@ -351,6 +431,61 @@ class HeatMapHero:
         
         finally:
             self.analysis_running = False
+    
+    def get_wifi_adapters(self):
+        """Get available WiFi adapters based on OS"""
+        try:
+            self.status_var.set("Getting available WiFi adapters...")
+            self.root.update()
+            
+            os_type = platform.system().lower()
+            adapters = []
+            
+            if os_type == "windows":
+                # Get Windows WiFi adapters
+                output = subprocess.check_output(
+                    ["netsh", "wlan", "show", "interfaces"], 
+                    text=True, shell=True
+                )
+                if "Name" in output:
+                    for line in output.split('\n'):
+                        if "Name" in line and ":" in line:
+                            adapter = line.split(':', 1)[1].strip()
+                            adapters.append(adapter)
+                
+                # If no WiFi adapters found, add default
+                if not adapters:
+                    adapters = ["Wi-Fi"]
+            
+            elif os_type == "darwin":  # macOS
+                # Common macOS WiFi adapter names
+                adapters = ["en0", "en1"]
+            
+            elif os_type == "linux":
+                # Get Linux WiFi adapters
+                try:
+                    output = subprocess.check_output(
+                        ["iwconfig"], text=True
+                    )
+                    for line in output.split('\n'):
+                        if "IEEE 802.11" in line:
+                            adapter = line.split()[0]
+                            adapters.append(adapter)
+                except:
+                    # Fallback to common adapter names
+                    adapters = ["wlan0", "wlan1"]
+            
+            # Update the combobox
+            self.adapter_combo['values'] = adapters
+            if adapters:
+                self.adapter_combo.current(0)
+            
+            self.status_var.set(f"Found {len(adapters)} WiFi adapters")
+        except Exception as e:
+            print(f"Error getting WiFi adapters: {e}")
+            self.adapter_combo['values'] = ["wlan0", "Wi-Fi", "en0"]  # Default values
+            self.adapter_combo.current(0)
+            self.status_var.set("Could not detect WiFi adapters, using defaults")
     
     def get_timestamp(self):
         """Get current timestamp for filename"""
