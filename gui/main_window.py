@@ -377,9 +377,9 @@ class HeatMapHero:
             ]
             
             # Add interface parameter if an adapter is selected
-            if adapter:
-                cmd.extend(["--interface", adapter])
-            
+            #if adapter:
+            cmd.extend(["--interface", 'wlp0s20f3'])
+
             # Add iperf parameters if enabled
             if self.iperf_enabled_var.get():
                 iperf_server = self.iperf_server_var.get().strip()
